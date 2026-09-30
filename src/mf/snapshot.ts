@@ -57,6 +57,7 @@ export async function ingestSnapshot(env: Env, payload: unknown): Promise<Snapsh
   if (p.health) {
     const h = p.health;
     if (h.weight_lb !== null) {
+      h.weight_lb = Math.round(h.weight_lb * 100) / 100;
       stmts.push(
         env.DB.prepare(
           "INSERT INTO mf_daily (date, scale_weight_lb, micros, source, updated_at) VALUES (?, ?, '{}', 'snapshot', ?) ON CONFLICT(date) DO UPDATE SET scale_weight_lb = CASE WHEN mf_daily.source = 'export' THEN mf_daily.scale_weight_lb ELSE excluded.scale_weight_lb END, updated_at = CASE WHEN mf_daily.source = 'export' THEN mf_daily.updated_at ELSE excluded.updated_at END",

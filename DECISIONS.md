@@ -181,6 +181,13 @@ Format: ID, date, spec section, what the spec proposed, what we do instead, why.
 **Why:** Found on the first live run: a Quick Export made at breakfast wrote "7 kcal" for that day as authoritative, which would have blocked the 23:55 snapshot for the same day.
 **Status:** accepted
 
+## D-024 · 2026-09-30 · Step 3 live: what the first real snapshots showed
+
+- Gauge Nightly ran by hand at 08:18 local: date and offset (-04:00) parsed from the ISO 8601 date, 7/7 nutrients, targets reconstructed to the export's values (2,536 kcal). MacroFactor's nutrient identifiers guessed from USDA numbers were wrong for Carbs, Fat, Fiber, Alcohol; Daniel re-picked them in the editor (real identifiers still to be read from the shared shortcut).
+- Gauge Morning: Health weight arrives in pounds (180.80 lb, equal to the export's scale weight); Health steps for 2026-09-29 were 9,879 against Oura's 5,121, so Health likely sums phone and ring samples. Confirms D-015: Oura is the floor's source, `steps_health` is shown but never merged.
+- Template-authored "Custom" date formats render as empty strings on the phone; the generator now uses ISO 8601 with time and the server derives the offset from it.
+**Status:** accepted
+
 ---
 
 ## Fact checks · 2026-09-29
