@@ -188,6 +188,11 @@ Format: ID, date, spec section, what the spec proposed, what we do instead, why.
 - Template-authored "Custom" date formats render as empty strings on the phone; the generator now uses ISO 8601 with time and the server derives the offset from it.
 **Status:** accepted
 
+## D-025 · 2026-09-30 · Shortcut generator corrected from the phone-built copy
+
+MacroFactor nutrient identifiers: Calories `k`, Protein `p`, Carbs `c`, Fat `f`, Fiber `291`, Alcohol `221`, Sodium `307`; calculations `consumed` and `remainingToTarget`. Format Date takes its input in `WFDate` (a text token with the date attachment), and the ISO 8601 style with `WFISO8601IncludeTime` is what the phone writes. `scripts/build-shortcuts.mjs` now matches, so a rebuilt Gauge Nightly needs no edits on the phone.
+**Status:** accepted
+
 ---
 
 ## Fact checks · 2026-09-29

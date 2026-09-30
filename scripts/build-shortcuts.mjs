@@ -75,7 +75,8 @@ const dateActions = () => {
   const dateUuid = randomUUID().toUpperCase();
   const isoUuid = randomUUID().toUpperCase();
   const tzUuid = randomUUID().toUpperCase();
-  const dateToken = `<dict><key>Value</key><dict><key>OutputName</key>${str("Current Date")}<key>OutputUUID</key>${str(dateUuid)}<key>Type</key><string>ActionOutput</string></dict><key>WFSerializationType</key><string>WFTextTokenAttachment</string></dict>`;
+  // Format Date's input parameter is `WFDate`, a text token string holding the Current Date attachment (seen in a phone-built shortcut).
+  const dateToken = tokenString("\uFFFC", { "{0, 1}": { outputName: "Date", uuid: dateUuid } });
   return {
     isoUuid,
     tzUuid,
@@ -83,7 +84,7 @@ const dateActions = () => {
       action("is.workflow.actions.date", `<key>UUID</key>${str(dateUuid)}<key>WFDateActionMode</key><string>Current Date</string>`),
       // ISO 8601 with time ("2026-09-30T23:55:00-04:00"): the server takes the date and the offset from it.
       // (A Custom style from a template rendered as an empty string on the phone, seen 2026-09-30.)
-      action("is.workflow.actions.format.date", `<key>UUID</key>${str(isoUuid)}<key>WFInput</key>${dateToken}<key>WFDateFormatStyle</key><string>ISO 8601</string><key>WFISO8601IncludeTime</key><true/>`),
+      action("is.workflow.actions.format.date", `<key>UUID</key>${str(isoUuid)}<key>WFDate</key>${dateToken}<key>WFDateFormatStyle</key><string>ISO 8601</string><key>WFISO8601IncludeTime</key><true/>`),
     ],
   };
 };
@@ -98,8 +99,9 @@ const postAction = (uuid, path, bodyUuid, bodyName) =>
 const notifyAction = (postUuid) =>
   action("is.workflow.actions.notification", `<key>WFNotificationActionBody</key>${tokenString("\uFFFC", attach(postUuid, "Contents of URL"))}<key>WFNotificationActionTitle</key>${str("Gauge")}<key>WFNotificationActionSound</key><false/>`);
 
-// MacroFactor's Get Nutrition State: nutrient by USDA nutrient number (Sodium = 307, seen in a real shortcut; the rest follow the same scheme).
-const NUTRIENTS = { calories: ["208", "Calories"], protein: ["203", "Protein"], carbs: ["205", "Carbs"], fat: ["204", "Fat"], fiber: ["291", "Fiber"], alcohol: ["221", "Alcohol"], sodium: ["307", "Sodium"] };
+// MacroFactor's Get Nutrition State nutrient identifiers, read from a shortcut built on the phone (2026-09-30):
+// letters for the macros, USDA nutrient numbers for the micronutrients.
+const NUTRIENTS = { calories: ["k", "Calories"], protein: ["p", "Protein"], carbs: ["c", "Carbs"], fat: ["f", "Fat"], fiber: ["291", "Fiber"], alcohol: ["221", "Alcohol"], sodium: ["307", "Sodium"] };
 const CALCS = { consumed: "consumed", remaining_goal: "remainingToTarget" };
 const nutritionAction = (uuid, [id, title], calculation) =>
   action(
