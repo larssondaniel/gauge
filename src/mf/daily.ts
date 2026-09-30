@@ -58,7 +58,7 @@ export async function loadMfDays(env: Env, start: string, end: string): Promise<
       calories_kcal: n("calories"), protein_g: n("protein_g"), carbs_g: n("carbs_g"), fat_g: n("fat_g"), fiber_g: n("fiber_g"), alcohol_g: n("alcohol_g"), sodium_mg: n("sodium_mg"),
       target_kcal: n("target_calories"), target_protein_g: n("target_protein_g"), target_carbs_g: n("target_carbs_g"), target_fat_g: n("target_fat_g"), targets_source: (r.targets_source as string | null) ?? null,
       steps_mf: n("steps"), steps_health: n("steps_health"), water_g: n("water_g"), caffeine_mg: n("caffeine_mg"), sugars_g: n("sugars_g"), sat_fat_g: n("saturated_fat_g"), potassium_mg: n("potassium_mg"),
-      fasting: b("fasting"), partial_logging: b("partial_logging"), provisional: r.source === "snapshot",
+      fasting: b("fasting"), partial_logging: b("partial_logging"), provisional: r.source !== "export",
       has_intake: typeof r.calories === "number", has_weighin: typeof r.scale_weight_lb === "number",
     });
   }
@@ -86,7 +86,7 @@ export interface MfSummary {
 export async function mfSummary(env: Env): Promise<MfSummary> {
   const [uploads, daily, food, checkins] = await env.DB.batch([
     env.DB.prepare("SELECT layout, received_at, coverage_start, coverage_end, ok, error, filename FROM mf_uploads ORDER BY id DESC LIMIT 6"),
-    env.DB.prepare("SELECT MIN(date) AS start, MAX(CASE WHEN calories IS NOT NULL OR trend_weight_lb IS NOT NULL THEN date END) AS through, MAX(CASE WHEN calories IS NOT NULL THEN date END) AS intake_through, MAX(CASE WHEN scale_weight_lb IS NOT NULL THEN date END) AS weighin_through, COUNT(*) AS n, SUM(source = 'snapshot') AS snap FROM mf_daily"),
+    env.DB.prepare("SELECT MIN(date) AS start, MAX(CASE WHEN calories IS NOT NULL OR trend_weight_lb IS NOT NULL THEN date END) AS through, MAX(CASE WHEN calories IS NOT NULL THEN date END) AS intake_through, MAX(CASE WHEN scale_weight_lb IS NOT NULL THEN date END) AS weighin_through, COUNT(*) AS n, SUM(source != 'export') AS snap FROM mf_daily"),
     env.DB.prepare("SELECT MAX(date) AS through, COUNT(*) AS n FROM mf_food_log"),
     env.DB.prepare("SELECT COUNT(DISTINCT update_date) AS n, MAX(update_date) AS last FROM mf_checkins"),
   ]);

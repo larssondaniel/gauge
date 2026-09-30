@@ -175,6 +175,12 @@ Format: ID, date, spec section, what the spec proposed, what we do instead, why.
 - Verified on the Free plan with the real samples: Granular (1,712 days, 63 check-ins) 2.3 s, Food Log (5,325 entries) 3.7 s, Quick Export 1.2 s, no limit errors.
 **Status:** accepted
 
+## D-023 · 2026-09-30 · The export day itself stays provisional
+
+**Decision:** Rows for the day an export was taken (and the day before, to absorb time-zone differences between the phone and UTC) are stored as `export_partial`. The nightly snapshot may overwrite them; the next export replaces them. `provisional=1` in `get_daily` covers both snapshot-only and export-partial days.
+**Why:** Found on the first live run: a Quick Export made at breakfast wrote "7 kcal" for that day as authoritative, which would have blocked the 23:55 snapshot for the same day.
+**Status:** accepted
+
 ---
 
 ## Fact checks · 2026-09-29

@@ -4,6 +4,7 @@
  * they carry (SPEC "Precedence"); rows absent from a file are left alone.
  */
 import type { Env } from "../env.js";
+import { addDays } from "../parsers/dates.js";
 import { parseMacroFactor, UnknownLayoutError, type MfDaily, type MfImport } from "../parsers/macrofactor.js";
 
 export interface IngestResult {
@@ -55,6 +56,9 @@ export async function ingestExport(env: Env, bytes: Uint8Array, filename: string
   const updates = allCols.filter((c) => c !== "date").map((c) => `${c} = excluded.${c}`).join(", ");
   const sql = `INSERT INTO mf_daily (${allCols.join(", ")}) VALUES (${allCols.map(() => "?").join(", ")}) ON CONFLICT(date) DO UPDATE SET ${updates}`;
   const stmt = env.DB.prepare(sql);
+  // An export taken on day D carries D as a partial day. Those rows stay overwritable by the
+  // nightly snapshot ('export_partial'); the next export replaces them like any other row.
+  const partialFrom = addDays(receivedAt.slice(0, 10), -1);
   const dailyStmts = imp.daily.map((d) =>
     stmt.bind(
       d.date,
@@ -63,7 +67,7 @@ export async function ingestExport(env: Env, bytes: Uint8Array, filename: string
       d.fasting === null ? null : d.fasting ? 1 : 0,
       d.partial_logging === null ? null : d.partial_logging ? 1 : 0,
       JSON.stringify(d.micros),
-      "export",
+      d.date >= partialFrom ? "export_partial" : "export",
       uploadId,
       now,
     ),
