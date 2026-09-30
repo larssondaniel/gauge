@@ -163,6 +163,18 @@ Format: ID, date, spec section, what the spec proposed, what we do instead, why.
 **Decision:** Stay on the Free plan until something actually hits a limit. The full Oura backfill (2022-01 to today, 19 chunks of 92 days, 12 endpoints each) ran through the admin endpoint with no CPU-limit or subrequest errors. `get_status` and `get_daily` are well under the limits. Revisit if MacroFactor ingestion of the all-time Granular Export (1,700 daily rows plus 5,000 food entries in one request) fails; the fallback is to upgrade rather than to split the file.
 **Status:** accepted
 
+## D-022 · 2026-09-30 · Step 2 as built: ingestion precedence, food-log windows, check-in targets
+
+**Decision:**
+- `POST /ingest/export` takes the raw file body (or one multipart file), bearer `UPLOAD_TOKEN`, keeps the bytes in KV under `mf:upload:<time>:<name>`, and replies with one plain-text line. Unknown layouts answer 422 with the reason (D-012).
+- Daily rows are upserted per column for the columns the layout carries: a Granular Export never overwrites the Quick Export's daily targets, and any export marks its rows `source=export`, which is how snapshot rows get replaced (step 3).
+- The food log is replaced inside the file's own date window (Quick Export: its 30 days; Food Log CSV: the span of its entries) so edits and deletions carry over.
+- Check-ins, weight goals, and body metrics are all-time lists and are replaced wholesale.
+- Targets for days without export targets are filled from the check-in active that weekday (`targets_source=checkin`), never touching `targets_source=export` rows.
+- The share-sheet Shortcut is generated and signed by `scripts/build-shortcuts.mjs` (files in git-ignored `shortcuts/build/`, since they embed the token).
+- Verified on the Free plan with the real samples: Granular (1,712 days, 63 check-ins) 2.3 s, Food Log (5,325 entries) 3.7 s, Quick Export 1.2 s, no limit errors.
+**Status:** accepted
+
 ---
 
 ## Fact checks · 2026-09-29

@@ -26,3 +26,6 @@ uploads/
 node_modules/
 dist/
 .DS_Store
+
+# Generated Shortcut files carry the upload token
+shortcuts/build/

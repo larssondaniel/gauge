@@ -17,6 +17,7 @@ import { page } from "./lib/html.js";
 import { buildServer, previewTool } from "./mcp/server.js";
 import { getAuthStatus } from "./oura/api.js";
 import { backfillStep, getState, incrementalSync, ouraSummary } from "./oura/sync.js";
+import { ingestExport, IngestError } from "./mf/ingest.js";
 
 const mcpApiHandler = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext & { props: GrantProps }): Promise<Response> {
@@ -32,6 +33,7 @@ const defaultHandler = {
     if (path === "/authorize") return handleAuthorize(request, env);
     if (path === "/callback") return handleCallback(request, env, ctx, (e) => kickoff(e));
     if (path.startsWith("/admin/")) return admin(request, env, ctx, path);
+    if (path === "/ingest/export") return ingestExportRoute(request, env);
     if (path === "/privacy") return page("Privacy", PRIVACY);
     if (path === "/terms") return page("Terms", TERMS);
     if (path === "/" || path === "") return page("Gauge", HOME);
@@ -43,6 +45,40 @@ const defaultHandler = {
 async function kickoff(env: Env): Promise<void> {
   await incrementalSync(env, "connect");
   if (!(await getState(env, "oura.backfill"))) await backfillStep(env);
+}
+
+/**
+ * POST /ingest/export: the phone's share-sheet Shortcut posts the raw file.
+ * Bearer UPLOAD_TOKEN (write-only endpoint, SPEC "Upload auth"). The body is
+ * the file itself, or a multipart form with one file field. Replies with one
+ * plain-text line for the Shortcut's notification.
+ */
+async function ingestExportRoute(request: Request, env: Env): Promise<Response> {
+  const line = (t: string, status = 200) => new Response(t, { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
+  if (request.method !== "POST") return line("POST a MacroFactor export file", 405);
+  const auth = request.headers.get("Authorization") ?? "";
+  if (!env.UPLOAD_TOKEN || !auth.startsWith("Bearer ") || !timingSafeEqual(auth.slice(7), env.UPLOAD_TOKEN)) return line("Unauthorized", 401);
+  const ct = request.headers.get("Content-Type") ?? "";
+  let bytes: Uint8Array;
+  let filename: string | null = new URL(request.url).searchParams.get("name") ?? request.headers.get("X-Filename");
+  if (ct.startsWith("multipart/form-data")) {
+    const form = await request.formData();
+    const file = [...form.values()].find((v): v is File => v instanceof File);
+    if (!file) return line("No file in form", 400);
+    bytes = new Uint8Array(await file.arrayBuffer());
+    filename = filename ?? file.name;
+  } else {
+    bytes = new Uint8Array(await request.arrayBuffer());
+  }
+  if (bytes.length === 0) return line("Empty upload", 400);
+  if (bytes.length > 40 * 1024 * 1024) return line("File too large (40 MB max)", 413);
+  try {
+    const r = await ingestExport(env, bytes, filename);
+    return line(r.message);
+  } catch (e) {
+    if (e instanceof IngestError) return line(`Not ingested: ${e.message}`, 422);
+    return line(`Not ingested: server error (${e instanceof Error ? e.message : String(e)})`, 500);
+  }
 }
 
 async function admin(request: Request, env: Env, ctx: ExecutionContext, path: string): Promise<Response> {
