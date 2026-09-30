@@ -141,6 +141,18 @@ Format: ID, date, spec section, what the spec proposed, what we do instead, why.
 **Why:** Read-only is a requirement, and a snapshot that depends on a logging action would violate it. Fourteen local action calls cost nothing at 23:55.
 **Status:** accepted (Daniel, 2026-09-30)
 
+## D-019 · 2026-09-30 · What the real exports carry (step 0 result)
+
+**Decision:** Parsers are header-mapped and tested against the three samples (`npm test`; sample tests skip when `samples/` is absent). Findings that shape steps 1–3:
+- Quick Export (30 days) carries every daily must-have: expenditure, trend and scale weight, calories, protein, carbs, fat, fiber, alcohol, sodium, the four daily targets, steps, plus 45 other nutrient columns kept in a `micros` map. It also carries the 30-day Food Log sheet. Nothing from the spec's daily list is missing.
+- Granular Export (All Time) carries the same daily fields spread over sheets, merged by date; it lacks daily targets (its "Micronutrient Goals" sheet is empty) but has "Nutrition Program Settings": one row per weekday per check-in (441 rows since 2025-03-11) with calories, macros, expenditure, and trend weight at the check-in. The importer will derive the historical daily target for day D from the check-in active on D and D's weekday, so backfilled days get targets without inventing numbers. `get_checkins` ships in v1 from this sheet plus "Weight Goals" (goal type, weight, rate, dates).
+- Body Metrics has one row (2025-08-06) with chest and bicep only; waist is empty. The bulk's waist guardrail therefore has no source yet; a manual entry path is left for a later decision.
+- Food Log arrives as CSV with a UTF-8 BOM, times as "hh:mm AM/PM", quick-adds named "Quick Add". `/ingest/export` accepts both xlsx and CSV.
+- Dates are Excel serials in most sheets but "M/D/YYYY" strings in four sheets; the parser accepts both and fails loudly on anything else.
+- "Fasting" and "Partial Logging" per-day flags exist and are kept on the daily row so under-logged days are visible.
+- The "User Profile" sheet (name, email, birthday) is never read.
+**Status:** accepted (verified by tests)
+
 ---
 
 ## Fact checks · 2026-09-29
