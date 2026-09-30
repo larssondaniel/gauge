@@ -1,0 +1,28 @@
+# Health data never enters git: samples, raw exports, uploaded payloads.
+samples/
+exports/
+payloads/
+uploads/
+*.xlsx
+*.xls
+*.csv
+*export*.json
+*export*.zip
+*payload*.json
+*snapshot*.json
+*.ndjson
+*.sqlite
+*.sqlite3
+*.db
+
+# Secrets and local config
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+.wrangler/
+
+# Tooling
+node_modules/
+dist/
+.DS_Store
