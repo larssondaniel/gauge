@@ -12,6 +12,9 @@ import { getState, incrementalSync, ouraSummary, todayUtc } from "../oura/sync.j
 import { loadCheckins, loadFoodLog, loadMfDays, loadWeightGoals, MF_DEFAULT_GROUPS, MF_GROUPS, mfRow, mfSummary } from "../mf/daily.js";
 import { describeDays, render, renderCsv, type Column, type Value } from "./format.js";
 import { snapshotSummary } from "../mf/snapshot.js";
+import { DEFAULT_WINDOWS } from "./derived.js";
+import { QUERY_SCHEMA, QueryError } from "./schema.js";
+import { DERIVED_COLUMNS, derivedRows, events, runQuery, sleepDetail, weeklyRows } from "./tools2.js";
 
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
 const MAX_DAY_ROWS = 400;
@@ -28,13 +31,19 @@ const RANGE_FIELDS = {
   format: z.enum(["csv", "json"]).default("csv"),
 };
 
+const WINDOW_FIELDS = {
+  recent_days: z.number().int().min(2).max(30).default(DEFAULT_WINDOWS.recentDays).describe("Recent window for rolling means (days)"),
+  baseline_days: z.number().int().min(7).max(120).default(DEFAULT_WINDOWS.baselineDays).describe("Baseline window ending the day before the recent window (days)"),
+};
+
 const DAILY_SCHEMA = z.object({
   ...RANGE_FIELDS,
   sources: z.enum(["oura", "mf", "both"]).default("both"),
   fields: z.string().optional().describe("Column names and/or groups, comma-separated"),
   align: z.enum(["calendar", "intake_to_night"]).default("calendar"),
   granularity: z.enum(["auto", "day", "week"]).default("auto"),
-  include_derived: z.boolean().default(false).describe("Rolling means and baselines (available after build step 4)"),
+  include_derived: z.boolean().default(false).describe("Adds energy balance, trend rate %/week, 7-day means and 30-day baselines for HRV and lowest HR (with n and % deviation), and 7-day sleep mean"),
+  ...WINDOW_FIELDS,
 });
 type DailyArgs = z.infer<typeof DAILY_SCHEMA>;
 
@@ -46,6 +55,21 @@ type FoodArgs = z.infer<typeof FOOD_SCHEMA>;
 
 const CHECKIN_SCHEMA = z.object({ ...RANGE_FIELDS, include_goals: z.boolean().default(true) });
 type CheckinArgs = z.infer<typeof CHECKIN_SCHEMA>;
+
+const WEEKLY_SCHEMA = z.object({
+  ...RANGE_FIELDS,
+  week_start: z.enum(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]).optional().describe("Weekday weeks start on (default: server config, the MacroFactor check-in day)"),
+  sources: z.enum(["oura", "mf", "both"]).default("both"),
+  steps_threshold: z.number().int().positive().optional().describe("Counts days at or above this many steps"),
+  steps_source: z.enum(["oura", "health"]).default("oura").describe("Which step count the step columns use"),
+  ...WINDOW_FIELDS,
+});
+type WeeklyToolArgs = z.infer<typeof WEEKLY_SCHEMA>;
+const SLEEP_SCHEMA = z.object({ ...RANGE_FIELDS, include_series: z.boolean().default(false).describe("5-minute HRV and heart-rate series; single day only") });
+type SleepArgs = z.infer<typeof SLEEP_SCHEMA>;
+const EVENTS_SCHEMA = z.object({ ...RANGE_FIELDS });
+type EventsArgs = z.infer<typeof EVENTS_SCHEMA>;
+const QUERY_SCHEMA_Z = z.object({ sql: z.string().min(6).max(4000).describe("One SELECT statement (SQLite dialect)") });
 
 export function buildServer(env: Env, _props: GrantProps): McpServer {
   const server = new McpServer({ name: "gauge", version: "0.2.0" });
@@ -104,6 +128,62 @@ export function buildServer(env: Env, _props: GrantProps): McpServer {
     async (args) => text(await checkinsTable(env, args)),
   );
 
+  server.registerTool(
+    "get_weekly",
+    {
+      title: "Weekly summary",
+      description: [
+        "One row per week (weeks start on the MacroFactor check-in weekday unless week_start is given), sources joined. Columns: days_n; MacroFactor: days_logged, weighins_n, kcal/protein/carbs/fat/fiber/sodium means over logged days, alcohol_g_total and drinking_days, expenditure_mean, energy_balance_mean (kcal - expenditure), target adherence (target_kcal_mean, dev_kcal_mean, dev_pct_mean, days_over_target, days_under_target), partial_logging_days, provisional_days, trend_start_lb, trend_end_lb, trend_change_lb, trend_change_pct_wk, scale_mean_lb;",
+        "Oura: nights_n, readiness_mean and readiness_min, hrv_mean, hrv_dev_pct (7-day mean at week end vs the 30-day baseline before it, rest-mode days excluded, null under 14 baseline days), hrv_base_n, lowhr_mean, lowhr_dev_pct, sleep_mean_min, sleep_efficiency_mean, temp_dev_mean_c, steps_mean, steps_min, days_steps_ge_<threshold> when steps_threshold is passed, rest_mode_days, tz_changes.",
+        "Range via start/end or last_n_days (default 56). Use for check-in reviews, phase comparisons, and 'is the bulk on rate' questions; the rate itself is judged against the plan, not here.",
+      ].join(" "),
+      inputSchema: WEEKLY_SCHEMA,
+      annotations: READ_ONLY,
+    },
+    async (args) => text(await weeklyTable(env, args)),
+  );
+
+  server.registerTool(
+    "get_sleep_detail",
+    {
+      title: "Sleep periods",
+      description:
+        "Every Oura sleep period in the range (type main = the night's main sleep; naps and rest listed separately), one row each: local bedtime start/end, total/in-bed/latency/deep/REM/light/awake minutes, efficiency, HRV ms, lowest and average HR, breathing rate, restless periods, Oura's readiness and sleep score deltas, UTC offset. include_series=true on a single day adds the 5-minute HRV and heart-rate series of that night. Default range: last 7 days.",
+      inputSchema: SLEEP_SCHEMA,
+      annotations: READ_ONLY,
+    },
+    async (args) => text(await sleepDetailTable(env, args)),
+  );
+
+  server.registerTool(
+    "get_events",
+    {
+      title: "Oura events",
+      description: "Oura tags, rest-mode periods, and Oura-detected workouts in the range, one row each with kind, day, start/end local time, name, detail, kcal, minutes, source. Rest-mode periods mark sick days (excluded from baselines). Default range: last 30 days.",
+      inputSchema: EVENTS_SCHEMA,
+      annotations: READ_ONLY,
+    },
+    async (args) => text(await eventsTable(env, args)),
+  );
+
+  server.registerTool(
+    "query",
+    {
+      title: "Read-only SQL",
+      description: `Run one read-only SELECT over the normalized tables (SQLite). Capped at 500 rows; returns CSV. Escape hatch for one-off questions the other tools do not answer, e.g. HRV on nights after >= 30 g alcohol vs none. ${QUERY_SCHEMA}`,
+      inputSchema: QUERY_SCHEMA_Z,
+      annotations: READ_ONLY,
+    },
+    async ({ sql }) => {
+      try {
+        return text(await runQuery(env, sql));
+      } catch (e) {
+        if (e instanceof QueryError) return text(`# query rejected: ${e.message}`);
+        return text(`# query failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    },
+  );
+
   return server;
 }
 
@@ -113,6 +193,10 @@ export async function previewTool(env: Env, name: string, args: Record<string, u
   if (name === "get_daily") return dailyTable(env, DAILY_SCHEMA.parse(args));
   if (name === "get_food_log") return foodLogTable(env, FOOD_SCHEMA.parse(args));
   if (name === "get_checkins") return checkinsTable(env, CHECKIN_SCHEMA.parse(args));
+  if (name === "get_weekly") return weeklyTable(env, WEEKLY_SCHEMA.parse(args));
+  if (name === "get_sleep_detail") return sleepDetailTable(env, SLEEP_SCHEMA.parse(args));
+  if (name === "get_events") return eventsTable(env, EVENTS_SCHEMA.parse(args));
+  if (name === "query") return runQuery(env, String(args.sql ?? ""));
   throw new Error(`unknown tool ${name}`);
 }
 
@@ -278,7 +362,14 @@ async function dailyTable(env: Env, a: DailyArgs): Promise<string> {
       prev = day;
     }
   }
-  if (a.include_derived) notes.push("include_derived is not available until build step 4; returning base columns");
+  if (a.include_derived) {
+    const w = { recentDays: a.recent_days, baselineDays: a.baseline_days, minBaselineDays: DEFAULT_WINDOWS.minBaselineDays };
+    const derived = await derivedRows(env, start, end, w);
+    for (const r of rows) Object.assign(r, derived.get(r.date as string));
+    for (const c of DERIVED_COLUMNS) if (!fields.includes(c)) fields.push(c);
+    for (const c of DERIVED_COLUMNS) columns.push({ name: c });
+    notes.push(`derived: ${w.recentDays}-day means vs ${w.baselineDays}-day baseline ending the day before the recent window; rest-mode days excluded; baseline null under ${w.minBaselineDays} valid days; energy_balance = kcal - expenditure; trend_rate = (trend D - trend D-7) / trend D-7 * 100`);
+  }
 
   const projected = rows.map((r) => {
     const o: Record<string, Value> = { date: r.date as string };
@@ -363,4 +454,37 @@ async function checkinsTable(env: Env, a: CheckinArgs): Promise<string> {
     out += `\n\n${renderCsv([`weight goals: ${goals.length} (all time)`], gcols, goals)}`;
   }
   return out;
+}
+
+// ------------------------------------------------------------------ get_weekly
+
+async function weeklyTable(env: Env, a: WeeklyToolArgs): Promise<string> {
+  const { start, end } = resolveRange(a, 56);
+  const weekStart = a.week_start ?? env.WEEK_START;
+  const { columns, rows } = await weeklyRows(env, {
+    start, end, weekStart, sources: a.sources, stepsThreshold: a.steps_threshold, stepsSource: a.steps_source,
+    windows: { recentDays: a.recent_days, baselineDays: a.baseline_days, minBaselineDays: DEFAULT_WINDOWS.minBaselineDays },
+  });
+  const notes = [`weeks ${start}..${end}, ${rows.length} rows, weeks start ${weekStart}, sources=${a.sources}, steps from ${a.steps_source}`];
+  if (a.sources !== "oura") {
+    const m = await mfSummary(env);
+    notes.push(`macrofactor: data through ${m.data_through ?? "none"}; last export ${m.uploads.find((u) => u.ok)?.received_at ?? "none"} UTC`);
+  }
+  if (a.sources !== "mf") {
+    const s = await ouraSummary(env);
+    notes.push(`oura: data through ${s.data_through ?? "none"}; last sync ${s.last_sync_at ?? "never"} UTC`);
+  }
+  notes.push("means are over days with data (n columns say how many); a partial first or last week shows in days_n; hrv_dev_pct/lowhr_dev_pct compare the 7 days ending the week to the 30 days before them");
+  return render(a.format, notes, columns, rows);
+}
+
+async function sleepDetailTable(env: Env, a: SleepArgs): Promise<string> {
+  const { start, end } = resolveRange(a, 7);
+  if (a.format === "json") throw new Error("get_sleep_detail returns CSV only");
+  return sleepDetail(env, start, end, a.include_series);
+}
+
+async function eventsTable(env: Env, a: EventsArgs): Promise<string> {
+  const { start, end } = resolveRange(a, 30);
+  return events(env, start, end);
 }

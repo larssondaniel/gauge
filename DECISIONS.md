@@ -193,6 +193,16 @@ Format: ID, date, spec section, what the spec proposed, what we do instead, why.
 MacroFactor nutrient identifiers: Calories `k`, Protein `p`, Carbs `c`, Fat `f`, Fiber `291`, Alcohol `221`, Sodium `307`; calculations `consumed` and `remainingToTarget`. Format Date takes its input in `WFDate` (a text token with the date attachment), and the ISO 8601 style with `WFISO8601IncludeTime` is what the phone writes. `scripts/build-shortcuts.mjs` now matches, so a rebuilt Gauge Nightly needs no edits on the phone.
 **Status:** accepted
 
+## D-026 · 2026-09-30 · Step 4 as built
+
+- `get_daily include_derived=true` adds energy balance, trend rate, 7-day means and 30-day baselines with n and % deviation for HRV and lowest HR, and the 7-day sleep mean; `recent_days` and `baseline_days` are parameters (D-008).
+- `get_weekly`: one row per week with the spec's aggregates; `week_start` overrides the config; `steps_source` (oura|health) and `steps_threshold` are parameters so the step floor's source can change without code (see D-015 and the pending Health comparison).
+- `get_sleep_detail`: every sleep period, with the 5-minute HRV/HR series for a single main sleep on request.
+- `get_events`: tags, rest-mode periods, and Oura-detected workouts.
+- `query`: one SELECT, guarded in code (D-010), 500-row cap. Verified live with the spec's own example (HRV after ≥30 g alcohol vs none).
+- `npm run wipe -- --yes` empties every D1 table and both KV namespaces (the spec's single wipe command).
+**Status:** accepted
+
 ---
 
 ## Fact checks · 2026-09-29

@@ -11,7 +11,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "shortcuts": "node scripts/build-shortcuts.mjs",
+    "wipe": "node scripts/wipe.mjs"
   },
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "^1.2.1",
