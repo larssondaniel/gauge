@@ -23,8 +23,8 @@ export async function ingestSnapshot(env: Env, payload: unknown): Promise<Snapsh
   const stmts: D1PreparedStatement[] = [];
   stmts.push(
     env.DB.prepare(
-      "INSERT INTO mf_snapshots (date, nutrition_json, nutrition_at, health_json, health_at, missing_json) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(date) DO UPDATE SET nutrition_json = COALESCE(excluded.nutrition_json, mf_snapshots.nutrition_json), nutrition_at = COALESCE(excluded.nutrition_at, mf_snapshots.nutrition_at), health_json = COALESCE(excluded.health_json, mf_snapshots.health_json), health_at = COALESCE(excluded.health_at, mf_snapshots.health_at), missing_json = excluded.missing_json",
-    ).bind(p.date, p.nutrition ? JSON.stringify(p.nutrition) : null, p.nutrition ? now : null, p.health ? JSON.stringify(p.health) : null, p.health ? now : null, JSON.stringify(missing)),
+      "INSERT INTO mf_snapshots (date, nutrition_json, nutrition_at, health_json, health_at, missing_json, tz_offset) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(date) DO UPDATE SET nutrition_json = COALESCE(excluded.nutrition_json, mf_snapshots.nutrition_json), nutrition_at = COALESCE(excluded.nutrition_at, mf_snapshots.nutrition_at), health_json = COALESCE(excluded.health_json, mf_snapshots.health_json), health_at = COALESCE(excluded.health_at, mf_snapshots.health_at), missing_json = excluded.missing_json, tz_offset = COALESCE(excluded.tz_offset, mf_snapshots.tz_offset)",
+    ).bind(p.date, p.nutrition ? JSON.stringify(p.nutrition) : null, p.nutrition ? now : null, p.health ? JSON.stringify(p.health) : null, p.health ? now : null, JSON.stringify(missing), p.tz_offset),
   );
 
   const parts: string[] = [];
