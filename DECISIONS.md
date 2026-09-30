@@ -203,6 +203,14 @@ MacroFactor nutrient identifiers: Calories `k`, Protein `p`, Carbs `c`, Fat `f`,
 - `npm run wipe -- --yes` empties every D1 table and both KV namespaces (the spec's single wipe command).
 **Status:** accepted
 
+## D-027 · 2026-09-30 · Acceptance test result and two label fixes
+
+All nine Purpose questions plus the SQL example were answered by Claude in the Fitness Journey project from the live connector (Desktop and iOS). Two defects surfaced, both in `get_checkins` labels:
+- The check-in sheet's "Weight (lb)" is the scale reading at the check-in, not trend weight. Column renamed `scale_weight_lb_at_checkin`; trend comes from `get_daily`.
+- "Goal Rate per Week (%)" in the Granular Export holds about 2.2× the percentage shown in the app (0.56 for a 0.25 %/week goal). The server never converts it; the column is now `rate_as_exported` with a note. Kept verbatim per "use the apps' own numbers".
+Also seen in the answers: restaurant Quick Adds carry no sodium (a logging convention the spec says not to fix), and Health's merged step total vs Oura remains under observation (D-015).
+**Status:** accepted
+
 ---
 
 ## Fact checks · 2026-09-29

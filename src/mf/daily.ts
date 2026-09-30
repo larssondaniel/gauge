@@ -141,7 +141,7 @@ export async function loadFoodLog(env: Env, start: string, end: string, search: 
 }
 
 export interface CheckinRow extends Record<string, Value> {
-  date: string; expenditure_kcal: number | null; trend_weight_lb: number | null; kcal_daily_avg: number | null; kcal_min: number | null; kcal_max: number | null; protein_g: number | null; carbs_g_min: number | null; carbs_g_max: number | null; fat_g_min: number | null; fat_g_max: number | null; weekdays_n: number; mode: string | null;
+  date: string; expenditure_kcal: number | null; scale_weight_lb_at_checkin: number | null; kcal_daily_avg: number | null; kcal_min: number | null; kcal_max: number | null; protein_g: number | null; carbs_g_min: number | null; carbs_g_max: number | null; fat_g_min: number | null; fat_g_max: number | null; weekdays_n: number; mode: string | null;
 }
 
 export async function loadCheckins(env: Env, start: string, end: string): Promise<CheckinRow[]> {
@@ -166,7 +166,7 @@ export async function loadCheckins(env: Env, start: string, end: string): Promis
     const [fmin, fmax] = mm("fat_g");
     const first = rows[0]!;
     out.push({
-      date, expenditure_kcal: first.expenditure as number | null, trend_weight_lb: first.weight_lb as number | null, kcal_daily_avg: first.daily_average_calories as number | null,
+      date, expenditure_kcal: first.expenditure as number | null, scale_weight_lb_at_checkin: first.weight_lb as number | null, kcal_daily_avg: first.daily_average_calories as number | null,
       kcal_min: kmin, kcal_max: kmax, protein_g: mm("protein_g")[1], carbs_g_min: cmin, carbs_g_max: cmax, fat_g_min: fmin, fat_g_max: fmax, weekdays_n: rows.length, mode: first.expenditure_mode as string | null,
     });
   }
@@ -174,6 +174,6 @@ export async function loadCheckins(env: Env, start: string, end: string): Promis
 }
 
 export async function loadWeightGoals(env: Env): Promise<Record<string, Value>[]> {
-  const res = await env.DB.prepare("SELECT goal, status, start_date, end_date, goal_weight_lb, rate_pct_per_week, starting_scale_weight_lb, starting_trend_weight_lb, ending_trend_weight_lb, ending_scale_weight_lb FROM mf_weight_goals ORDER BY start_date").all<Record<string, Value>>();
+  const res = await env.DB.prepare("SELECT goal, status, start_date, end_date, goal_weight_lb, rate_pct_per_week AS rate_as_exported, starting_scale_weight_lb, starting_trend_weight_lb, ending_trend_weight_lb, ending_scale_weight_lb FROM mf_weight_goals ORDER BY start_date").all<Record<string, Value>>();
   return res.results;
 }

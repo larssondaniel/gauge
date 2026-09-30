@@ -121,7 +121,7 @@ export function buildServer(env: Env, _props: GrantProps): McpServer {
     {
       title: "MacroFactor check-ins",
       description:
-        "MacroFactor's program history from the Granular Export: one row per check-in date with expenditure_kcal, trend_weight_lb at the check-in, kcal_daily_avg, and the range of calorie/carb/fat targets across weekdays (kcal_min/kcal_max etc., since MacroFactor can vary targets by weekday), plus the weight-goal history (goal type, status, dates, goal weight, rate %/week). Range via start/end or last_n_days (default 90). Explains why calories moved and when.",
+        "MacroFactor's program history from the Granular Export: one row per check-in date with expenditure_kcal, scale_weight_lb_at_checkin (the app's 'Weight' column, a scale reading, not trend weight; join get_daily for trend), kcal_daily_avg, and the range of calorie/carb/fat targets across weekdays (kcal_min/kcal_max etc., since MacroFactor can vary targets by weekday), plus the weight-goal history (goal type, status, dates, goal weight, rate_as_exported: MacroFactor's own 'Goal Rate per Week (%)' value, which in real exports is about 2.2 times the percentage set in the app; compare with the app before quoting it). Range via start/end or last_n_days (default 90). Explains why calories moved and when.",
       inputSchema: CHECKIN_SCHEMA,
       annotations: READ_ONLY,
     },
@@ -440,7 +440,7 @@ async function checkinsTable(env: Env, a: CheckinArgs): Promise<string> {
   const notes = [`check-ins ${start}..${end}: ${rows.length}; source Granular Export (${m.checkins} check-ins on file, latest ${m.last_checkin ?? "none"})`];
   if (!m.checkins) notes.push("no check-in history yet: it arrives with a Granular Export (Nutrition Program Settings)");
   const columns: Column[] = [
-    { name: "date" }, { name: "expenditure_kcal" }, { name: "trend_weight_lb", dp: 1 }, { name: "kcal_daily_avg" }, { name: "kcal_min" }, { name: "kcal_max" },
+    { name: "date" }, { name: "expenditure_kcal" }, { name: "scale_weight_lb_at_checkin", dp: 1 }, { name: "kcal_daily_avg" }, { name: "kcal_min" }, { name: "kcal_max" },
     { name: "protein_g" }, { name: "carbs_g_min" }, { name: "carbs_g_max" }, { name: "fat_g_min" }, { name: "fat_g_max" }, { name: "weekdays_n" }, { name: "mode" },
   ];
   if (a.format === "json") {
@@ -450,8 +450,8 @@ async function checkinsTable(env: Env, a: CheckinArgs): Promise<string> {
   let out = renderCsv(notes, columns, rows);
   if (a.include_goals) {
     const goals = await loadWeightGoals(env);
-    const gcols: Column[] = ["goal", "status", "start_date", "end_date", "goal_weight_lb", "rate_pct_per_week", "starting_scale_weight_lb", "starting_trend_weight_lb", "ending_trend_weight_lb", "ending_scale_weight_lb"].map((n) => ({ name: n }));
-    out += `\n\n${renderCsv([`weight goals: ${goals.length} (all time)`], gcols, goals)}`;
+    const gcols: Column[] = ["goal", "status", "start_date", "end_date", "goal_weight_lb", "rate_as_exported", "starting_scale_weight_lb", "starting_trend_weight_lb", "ending_trend_weight_lb", "ending_scale_weight_lb"].map((n) => ({ name: n }));
+    out += `\n\n${renderCsv([`weight goals: ${goals.length} (all time); rate_as_exported is MacroFactor's 'Goal Rate per Week (%)' column verbatim (about 2.2x the % shown in the app)`], gcols, goals)}`;
   }
   return out;
 }
