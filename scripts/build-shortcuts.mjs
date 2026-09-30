@@ -81,8 +81,9 @@ const dateActions = () => {
     tzUuid,
     actions: [
       action("is.workflow.actions.date", `<key>UUID</key>${str(dateUuid)}<key>WFDateActionMode</key><string>Current Date</string>`),
-      action("is.workflow.actions.format.date", `<key>UUID</key>${str(isoUuid)}<key>WFInput</key>${dateToken}<key>WFDateFormatStyle</key><string>Custom</string><key>WFDateFormat</key><string>yyyy-MM-dd</string>`),
-      action("is.workflow.actions.format.date", `<key>UUID</key>${str(tzUuid)}<key>WFInput</key>${dateToken}<key>WFDateFormatStyle</key><string>Custom</string><key>WFDateFormat</key><string>xxx</string>`),
+      // ISO 8601 with time ("2026-09-30T23:55:00-04:00"): the server takes the date and the offset from it.
+      // (A Custom style from a template rendered as an empty string on the phone, seen 2026-09-30.)
+      action("is.workflow.actions.format.date", `<key>UUID</key>${str(isoUuid)}<key>WFInput</key>${dateToken}<key>WFDateFormatStyle</key><string>ISO 8601</string><key>WFISO8601IncludeTime</key><true/>`),
     ],
   };
 };
@@ -110,7 +111,7 @@ const nutritionAction = (uuid, [id, title], calculation) =>
 {
   const d = dateActions();
   const reads = [];
-  const items = [dictItem("date", tokenString("\uFFFC", attach(d.isoUuid, "Formatted Date"))), dictItem("tz_offset", tokenString("\uFFFC", attach(d.tzUuid, "Formatted Date")))];
+  const items = [dictItem("date", tokenString("\uFFFC", attach(d.isoUuid, "Formatted Date")))];
   for (const [key, spec] of Object.entries(NUTRIENTS)) {
     for (const [calcKey, calcValue] of Object.entries(CALCS)) {
       const uuid = randomUUID().toUpperCase();
