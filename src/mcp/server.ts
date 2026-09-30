@@ -45,7 +45,16 @@ export function buildServer(env: Env, _props: GrantProps): McpServer {
         "Missing values are empty cells, never filled in. oura_utc_offset and tz_change show travel days; split_night marks two main sleeps merged into one row; rest_mode marks Oura rest-mode days.",
         "MacroFactor columns (trend weight, expenditure, intake, targets) join in once exports are ingested; until then sources=mf returns only the date column.",
       ].join(" "),
-      inputSchema: z.object({
+      inputSchema: DAILY_SCHEMA,
+      annotations: READ_ONLY,
+    },
+    async (args) => text(await dailyTable(env, args)),
+  );
+
+  return server;
+}
+
+const DAILY_SCHEMA = z.object({
         start: z.string().optional().describe("First day, YYYY-MM-DD"),
         end: z.string().optional().describe("Last day, YYYY-MM-DD (default: today)"),
         last_n_days: z.number().int().min(1).max(MAX_DAY_ROWS).optional().describe("Alternative to start/end; ends today"),
@@ -55,13 +64,16 @@ export function buildServer(env: Env, _props: GrantProps): McpServer {
         granularity: z.enum(["auto", "day", "week"]).default("auto"),
         format: z.enum(["csv", "json"]).default("csv"),
         include_derived: z.boolean().default(false).describe("Rolling means and baselines (available after build step 4)"),
-      }),
-      annotations: READ_ONLY,
-    },
-    async (args) => text(await dailyTable(env, args)),
-  );
+});
 
-  return server;
+/** Run a tool by name outside MCP (admin preview). */
+export async function previewTool(env: Env, name: string, args: Record<string, unknown>): Promise<string> {
+  if (name === "get_status") return statusText(env);
+  if (name === "get_daily") {
+    const parsed = DAILY_SCHEMA.parse(args);
+    return dailyTable(env, parsed);
+  }
+  throw new Error(`unknown tool ${name}`);
 }
 
 // ------------------------------------------------------------------ get_status
@@ -230,7 +242,8 @@ function toWeekly(rows: Record<string, Value>[], columns: Column[], weekStart: s
       if (c.name === "date" || c.name === "week_start" || c.name === "days_n") continue;
       const vals = list.map((r) => r[c.name]).filter((v): v is number => typeof v === "number");
       const bools = list.map((r) => r[c.name]).filter((v): v is boolean => typeof v === "boolean");
-      if (vals.length) w[c.name] = Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
+      const f = 10 ** (c.dp ?? 1);
+      if (vals.length) w[c.name] = Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * f) / f;
       else if (bools.length) w[c.name] = bools.filter(Boolean).length;
       else w[c.name] = null;
     }

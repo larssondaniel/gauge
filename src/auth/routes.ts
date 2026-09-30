@@ -116,6 +116,8 @@ export async function handleCallback(req: Request, env: Env, ctx: ExecutionConte
       metadata: { connected_at: new Date().toISOString() },
       scope: original.scope.length ? original.scope : DEFAULT_SCOPES,
       props,
+      // D-020: a second Claude account connecting must not revoke the first one's grant.
+      revokeExistingGrants: false,
     });
     ctx.waitUntil(afterConnect(env).catch(() => undefined));
     headers.set("Location", redirectTo);

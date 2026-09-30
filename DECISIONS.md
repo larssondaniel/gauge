@@ -68,7 +68,7 @@ Format: ID, date, spec section, what the spec proposed, what we do instead, why.
 ## D-009 · 2026-09-29 · Main sleep is Oura's `long_sleep`; the split-night rule gets the missing details
 
 **Spec:** Main sleep from `sleep` (main-sleep type); split nights summed with min lowest HR and duration-weighted HRV.
-**Decision:** Main sleep = records with `type = long_sleep`. `sleep`, `late_nap`, and `rest` go to the naps table; `deleted` records are dropped. When two `long_sleep` records share a `day`: durations and stages summed, lowest HR = minimum, HRV and average HR duration-weighted, efficiency time-in-bed-weighted, `bedtime_start` = earliest, `bedtime_end` = latest, latency from the first period, row flagged `split_night`. How Oura assigns a sleep record's `day` is not documented (the spec only says "day that the sleep belongs to"); the backfill will compare `day` with the local date of `bedtime_end` and the result gets logged here.
+**Decision:** Main sleep = records with `type = long_sleep`. `sleep`, `late_nap`, and `rest` go to the naps table; `deleted` records are dropped. When two `long_sleep` records share a `day`: durations and stages summed, lowest HR = minimum, HRV and average HR duration-weighted, efficiency time-in-bed-weighted, `bedtime_start` = earliest, `bedtime_end` = latest, latency from the first period, row flagged `split_night`. How Oura assigns a sleep record's `day` is not documented (the spec only says "day that the sleep belongs to"); the backfill will compare `day` with the local date of `bedtime_end` and the result gets logged here. **Result (2026-09-30, 812 main sleeps since 2022):** `day` equals the local date of `bedtime_end` in every record, so Oura's day is the wake-up date. Row D's sleep is the night that ended on the morning of D, as the spec assumed.
 **Why:** Using Oura's own classification follows "use the apps' own numbers". The spec's rule left efficiency, average HR, and timing unspecified.
 **Status:** accepted (Daniel, 2026-09-30)
 
@@ -152,6 +152,16 @@ Format: ID, date, spec section, what the spec proposed, what we do instead, why.
 - "Fasting" and "Partial Logging" per-day flags exist and are kept on the daily row so under-logged days are visible.
 - The "User Profile" sheet (name, email, birthday) is never read.
 **Status:** accepted (verified by tests)
+
+## D-020 · 2026-09-30 · Grants from a second Claude account are not revoked
+
+**Decision:** `revokeExistingGrants: false` in the connector's OAuth provider. Daniel has two Claude accounts (the Fitness Journey project lives on one); the library's default revokes an earlier grant when the same client re-authorizes from the same callback, which would silently disconnect the other account. Grants still expire after 90 idle days.
+**Status:** accepted
+
+## D-021 · 2026-09-30 · Backfill ran on the Workers Free plan
+
+**Decision:** Stay on the Free plan until something actually hits a limit. The full Oura backfill (2022-01 to today, 19 chunks of 92 days, 12 endpoints each) ran through the admin endpoint with no CPU-limit or subrequest errors. `get_status` and `get_daily` are well under the limits. Revisit if MacroFactor ingestion of the all-time Granular Export (1,700 daily rows plus 5,000 food entries in one request) fails; the fallback is to upgrade rather than to split the file.
+**Status:** accepted
 
 ---
 

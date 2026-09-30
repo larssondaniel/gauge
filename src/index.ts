@@ -14,7 +14,7 @@ import type { Env, GrantProps } from "./env.js";
 import { handleAuthorize, handleCallback } from "./auth/routes.js";
 import { timingSafeEqual } from "./lib/crypto.js";
 import { page } from "./lib/html.js";
-import { buildServer } from "./mcp/server.js";
+import { buildServer, previewTool } from "./mcp/server.js";
 import { getAuthStatus } from "./oura/api.js";
 import { backfillStep, getState, incrementalSync, ouraSummary } from "./oura/sync.js";
 
@@ -57,6 +57,14 @@ async function admin(request: Request, env: Env, ctx: ExecutionContext, path: st
       let state = await backfillStep(env);
       for (let i = 1; i < steps && state.phase !== "done"; i++) state = await backfillStep(env);
       return json(state);
+    }
+    if (path.startsWith("/admin/tool/") && request.method === "GET") {
+      // Operator preview of a tool's output, for verification without a Claude session.
+      const name = path.slice("/admin/tool/".length);
+      const args: Record<string, unknown> = {};
+      for (const [k, v] of new URL(request.url).searchParams) args[k] = v === "true" ? true : v === "false" ? false : /^\d+$/.test(v) ? Number(v) : v;
+      const out = await previewTool(env, name, args);
+      return new Response(out, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
     }
     if (path === "/admin/sleep-day-rule" && request.method === "GET") {
       // D-009: how does Oura assign a sleep record's day? Compare with the local date of bedtime_end.
