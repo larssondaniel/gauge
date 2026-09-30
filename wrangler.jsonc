@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gauge",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // D-013: no request/response logging. Observability is on by default for new Workers; keep it off.
+  "observability": { "enabled": false },
+  "kv_namespaces": [
+    { "binding": "OAUTH_KV", "id": "2f9aa2160ed24e209424d932108818d3" },
+    { "binding": "DATA_KV", "id": "536f1e306ada4d75ae7fd8aebab62da3" }
+  ],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "gauge", "database_id": "66a0e98b-f3db-4769-b474-217ffdd7f7b5", "migrations_dir": "migrations" }
+  ],
+  // D-004: Oura sync every 2 hours (at :15 so it never coincides with the 23:55 phone snapshot).
+  "triggers": { "crons": ["15 */2 * * *"] },
+  "vars": {
+    "BASE_URL": "https://gauge.broken-water-22ee.workers.dev",
+    "WEEK_START": "monday",
+    "OURA_SCOPES": "personal daily heartrate workout tag spo2 stress heart_health",
+    "OURA_BACKFILL_FROM_YEAR": "2015"
+  }
+  // Secrets (wrangler secret put): OURA_CLIENT_ID, OURA_CLIENT_SECRET, OURA_USER_ID,
+  // CONSENT_SECRET, TOKEN_ENCRYPTION_KEY, ADMIN_TOKEN, UPLOAD_TOKEN (step 2).
+}
