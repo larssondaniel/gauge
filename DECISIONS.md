@@ -211,6 +211,11 @@ All nine Purpose questions plus the SQL example were answered by Claude in the F
 Also seen in the answers: restaurant Quick Adds carry no sodium (a logging convention the spec says not to fix), and Health's merged step total vs Oura remains under observation (D-015).
 **Status:** accepted
 
+## D-028 · 2026-09-30 · Upload token stays despite the shared shortcut link
+
+The Gauge Nightly shortcut was shared once by iCloud link to read its identifiers; the link embeds the upload token and cannot be deleted. Daniel chose to keep the token: the link is unguessable, and the token only allows posting to `/ingest/*`. Rotation path if ever needed: new `UPLOAD_TOKEN` secret, `npm run shortcuts`, reinstall Nightly and Upload, paste the token into Gauge Morning's header. The weekly Quick Export is a repeating Monday reminder; staleness notes in `get_status` and `get_daily` are the backstop.
+**Status:** accepted (Daniel, 2026-09-30)
+
 ---
 
 ## Fact checks · 2026-09-29
