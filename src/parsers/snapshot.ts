@@ -14,7 +14,9 @@
  *   <nutrient>_remaining_min      number
  *   <nutrient>_remaining_max      number
  *   weight_lb                     number (Apple Health, morning weigh-in)
- *   steps                         number (Apple Health, whole day)
+ *   steps                         number (Apple Health, whole day of `date`)
+ *   steps_yesterday               number (Apple Health, whole day before `date`; the
+ *                                 morning shortcut sends this because yesterday is final)
  *   tz_offset                     "+02:00" style, informational
  * where <nutrient> is one of NUTRIENTS. A nutrient with no goal set makes the
  * Shortcut variable empty, which arrives as "" and becomes null. Targets are
@@ -39,7 +41,7 @@ export interface ParsedSnapshot {
   date: string;
   tz_offset: string | null;
   nutrition: Record<Nutrient, NutrientState> | null;
-  health: { weight_lb: number | null; steps: number | null } | null;
+  health: { weight_lb: number | null; steps: number | null; steps_yesterday: number | null } | null;
   /** Keys that carried a value. */
   received: string[];
   /** Expected keys that were absent or empty. */
@@ -85,7 +87,9 @@ export function parseSnapshot(payload: unknown): ParsedSnapshot {
   }
 
   let health: ParsedSnapshot["health"] = null;
-  if ("weight_lb" in obj || "steps" in obj) health = { weight_lb: num("weight_lb"), steps: num("steps") };
+  if ("weight_lb" in obj || "steps" in obj || "steps_yesterday" in obj) {
+    health = { weight_lb: num("weight_lb"), steps: "steps" in obj ? num("steps") : (used.add("steps"), null), steps_yesterday: "steps_yesterday" in obj ? num("steps_yesterday") : (used.add("steps_yesterday"), null) };
+  }
 
   if (!nutrition && !health) throw new SnapshotError("Payload has neither nutrition nor health fields");
 

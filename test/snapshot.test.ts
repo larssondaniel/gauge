@@ -31,13 +31,18 @@ describe("snapshot payload", () => {
     const p = parseSnapshot({ date: "2026-09-30T07:10:00+02:00", weight_lb: 180.8, steps: "" });
     expect(p.date).toBe("2026-09-30");
     expect(p.nutrition).toBeNull();
-    expect(p.health).toEqual({ weight_lb: 180.8, steps: null });
+    expect(p.health).toEqual({ weight_lb: 180.8, steps: null, steps_yesterday: null });
     expect(p.missing).toEqual(["steps"]);
   });
   it("rejects payloads without a date or without any fields", () => {
     expect(() => parseSnapshot({ calories_consumed: 1 })).toThrow(/date/);
     expect(() => parseSnapshot({ date: "2026-09-30" })).toThrow(/neither/);
     expect(() => parseSnapshot({ date: "2026-09-30", steps: "lots" })).toThrow(/must be a number/);
+  });
+  it("accepts steps_yesterday from the morning shortcut", () => {
+    const p = parseSnapshot({ date: "2026-09-30", weight_lb: "180.8", steps_yesterday: 6449 });
+    expect(p.health).toEqual({ weight_lb: 180.8, steps: null, steps_yesterday: 6449 });
+    expect(p.missing).toEqual([]);
   });
   it("lists keys it did not use", () => {
     const p = parseSnapshot({ date: "2026-09-30", steps: 5000, water_ml: 2000 });

@@ -20,6 +20,7 @@ export interface MfDayRow {
   target_fat_g: number | null;
   targets_source: string | null;
   steps_mf: number | null;
+  steps_health: number | null;
   water_g: number | null;
   caffeine_mg: number | null;
   sugars_g: number | null;
@@ -36,14 +37,14 @@ export const MF_GROUPS: Record<string, string[]> = {
   weight: ["trend_weight_lb", "scale_weight_lb", "expenditure_kcal"],
   intake: ["calories_kcal", "protein_g", "carbs_g", "fat_g", "fiber_g", "alcohol_g", "sodium_mg"],
   targets: ["target_kcal", "target_protein_g", "target_carbs_g", "target_fat_g", "targets_source"],
-  mf_extra: ["steps_mf", "water_g", "caffeine_mg", "sugars_g", "sat_fat_g", "potassium_mg"],
+  mf_extra: ["steps_mf", "steps_health", "water_g", "caffeine_mg", "sugars_g", "sat_fat_g", "potassium_mg"],
   mf_flags: ["fasting", "partial_logging", "provisional"],
 };
 export const MF_DEFAULT_GROUPS = ["weight", "intake", "targets", "mf_flags"];
 
 export async function loadMfDays(env: Env, start: string, end: string): Promise<Map<string, MfDayRow>> {
   const res = await env.DB.prepare(
-    "SELECT date, trend_weight_lb, scale_weight_lb, expenditure, calories, protein_g, carbs_g, fat_g, fiber_g, alcohol_g, sodium_mg, target_calories, target_protein_g, target_carbs_g, target_fat_g, targets_source, steps, water_g, caffeine_mg, sugars_g, saturated_fat_g, potassium_mg, fasting, partial_logging, source FROM mf_daily WHERE date BETWEEN ? AND ?",
+    "SELECT date, trend_weight_lb, scale_weight_lb, expenditure, calories, protein_g, carbs_g, fat_g, fiber_g, alcohol_g, sodium_mg, target_calories, target_protein_g, target_carbs_g, target_fat_g, targets_source, steps, steps_health, water_g, caffeine_mg, sugars_g, saturated_fat_g, potassium_mg, fasting, partial_logging, source FROM mf_daily WHERE date BETWEEN ? AND ?",
   )
     .bind(start, end)
     .all<Record<string, number | string | null>>();
@@ -56,7 +57,7 @@ export async function loadMfDays(env: Env, start: string, end: string): Promise<
       trend_weight_lb: n("trend_weight_lb"), scale_weight_lb: n("scale_weight_lb"), expenditure_kcal: n("expenditure"),
       calories_kcal: n("calories"), protein_g: n("protein_g"), carbs_g: n("carbs_g"), fat_g: n("fat_g"), fiber_g: n("fiber_g"), alcohol_g: n("alcohol_g"), sodium_mg: n("sodium_mg"),
       target_kcal: n("target_calories"), target_protein_g: n("target_protein_g"), target_carbs_g: n("target_carbs_g"), target_fat_g: n("target_fat_g"), targets_source: (r.targets_source as string | null) ?? null,
-      steps_mf: n("steps"), water_g: n("water_g"), caffeine_mg: n("caffeine_mg"), sugars_g: n("sugars_g"), sat_fat_g: n("saturated_fat_g"), potassium_mg: n("potassium_mg"),
+      steps_mf: n("steps"), steps_health: n("steps_health"), water_g: n("water_g"), caffeine_mg: n("caffeine_mg"), sugars_g: n("sugars_g"), sat_fat_g: n("saturated_fat_g"), potassium_mg: n("potassium_mg"),
       fasting: b("fasting"), partial_logging: b("partial_logging"), provisional: r.source === "snapshot",
       has_intake: typeof r.calories === "number", has_weighin: typeof r.scale_weight_lb === "number",
     });

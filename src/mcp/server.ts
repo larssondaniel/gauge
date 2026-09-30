@@ -11,6 +11,7 @@ import { getAuthStatus } from "../oura/api.js";
 import { getState, incrementalSync, ouraSummary, todayUtc } from "../oura/sync.js";
 import { loadCheckins, loadFoodLog, loadMfDays, loadWeightGoals, MF_DEFAULT_GROUPS, MF_GROUPS, mfRow, mfSummary } from "../mf/daily.js";
 import { describeDays, render, renderCsv, type Column, type Value } from "./format.js";
+import { snapshotSummary } from "../mf/snapshot.js";
 
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
 const MAX_DAY_ROWS = 400;
@@ -70,8 +71,8 @@ export function buildServer(env: Env, _props: GrantProps): McpServer {
         "Row D means: MacroFactor intake and targets = food logged on D; scale weight = weigh-in the morning of D; trend weight and expenditure = the app's values for D. Oura sleep/HRV/lowest HR/readiness = the main sleep that ENDED on the morning of D (Oura's own day); steps/activity/stress = during D.",
         "align=intake_to_night shifts the Oura night columns back one day so row D pairs D's intake with the night that FOLLOWED it (use for alcohol, late meals, sodium vs sleep/HRV).",
         "Range: start and end (ISO dates, inclusive) or last_n_days (default 14). Over 120 days rows become weekly means unless granularity=day (max 400 day rows).",
-        "fields: comma-separated column names and/or groups. MacroFactor groups: weight (trend, scale, expenditure), intake (kcal, protein, carbs, fat, fiber, alcohol, sodium), targets, mf_extra (steps_mf, water, caffeine, sugars, sat fat, potassium), mf_flags (fasting, partial_logging, provisional). Oura groups: recovery, sleep, activity, stress, flags, readiness_contributors, sleep_contributors, spo2, cardio. 'all' = everything. Default = weight, intake, targets, mf_flags, recovery, sleep, activity, stress, flags. Fewer fields = fewer tokens.",
-        "Missing values are empty cells, never filled. targets_source=checkin means the day's targets came from MacroFactor's check-in history rather than the export. provisional=1 marks days known only from the phone's nightly snapshot. steps = Oura; steps_mf = MacroFactor's import. oura_utc_offset and tz_change show travel days; split_night marks two main sleeps merged; rest_mode marks Oura rest-mode days.",
+        "fields: comma-separated column names and/or groups. MacroFactor groups: weight (trend, scale, expenditure), intake (kcal, protein, carbs, fat, fiber, alcohol, sodium), targets, mf_extra (steps_mf, steps_health, water, caffeine, sugars, sat fat, potassium), mf_flags (fasting, partial_logging, provisional). Oura groups: recovery, sleep, activity, stress, flags, readiness_contributors, sleep_contributors, spo2, cardio. 'all' = everything. Default = weight, intake, targets, mf_flags, recovery, sleep, activity, stress, flags. Fewer fields = fewer tokens.",
+        "Missing values are empty cells, never filled. targets_source=checkin means the day's targets came from MacroFactor's check-in history rather than the export. provisional=1 marks days known only from the phone's nightly snapshot. steps = Oura (the plan's source of truth); steps_mf = MacroFactor's import; steps_health = iPhone via the morning snapshot. oura_utc_offset and tz_change show travel days; split_night marks two main sleeps merged; rest_mode marks Oura rest-mode days.",
       ].join(" "),
       inputSchema: DAILY_SCHEMA,
       annotations: READ_ONLY,
@@ -155,6 +156,8 @@ async function statusText(env: Env): Promise<string> {
     if (failed.length) lines.push(`failed_uploads: ${failed.map((u) => `${u.received_at} ${u.filename ?? ""}: ${u.error}`).join(" | ")}`);
     lines.push(`checkins: ${m.checkins} (latest ${m.last_checkin ?? "none"})`);
     lines.push(`records: daily=${m.counts.daily}, food_entries=${m.counts.food}, snapshot_only_days=${m.counts.snapshot_days}`);
+    const snap = await snapshotSummary(env);
+    lines.push(`snapshot_feed: nutrition ${snap.latest_nutrition ? `${snap.latest_nutrition.date} (received ${snap.latest_nutrition.at})` : "never"}; health ${snap.latest_health ? `${snap.latest_health.date} (received ${snap.latest_health.at})` : "never"}`);
     if (m.data_through) {
       const mfDays = await loadMfDays(env, addDays(m.data_through, -29), m.data_through);
       const missingIntake = dateRange(addDays(m.data_through, -29), m.data_through).filter((d) => !mfDays.get(d)?.has_intake);

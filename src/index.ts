@@ -18,6 +18,8 @@ import { buildServer, previewTool } from "./mcp/server.js";
 import { getAuthStatus } from "./oura/api.js";
 import { backfillStep, getState, incrementalSync, ouraSummary } from "./oura/sync.js";
 import { ingestExport, IngestError } from "./mf/ingest.js";
+import { ingestSnapshot } from "./mf/snapshot.js";
+import { SnapshotError } from "./parsers/snapshot.js";
 
 const mcpApiHandler = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext & { props: GrantProps }): Promise<Response> {
@@ -34,6 +36,7 @@ const defaultHandler = {
     if (path === "/callback") return handleCallback(request, env, ctx, (e) => kickoff(e));
     if (path.startsWith("/admin/")) return admin(request, env, ctx, path);
     if (path === "/ingest/export") return ingestExportRoute(request, env);
+    if (path === "/ingest/daily") return ingestDailyRoute(request, env);
     if (path === "/privacy") return page("Privacy", PRIVACY);
     if (path === "/terms") return page("Terms", TERMS);
     if (path === "/" || path === "") return page("Gauge", HOME);
@@ -81,6 +84,27 @@ async function ingestExportRoute(request: Request, env: Env): Promise<Response> 
   }
 }
 
+/** POST /ingest/daily: JSON snapshot from the phone (D-018). Same bearer token; one-line reply. */
+async function ingestDailyRoute(request: Request, env: Env): Promise<Response> {
+  const line = (t: string, status = 200) => new Response(t, { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
+  if (request.method !== "POST") return line("POST a JSON snapshot", 405);
+  const auth = request.headers.get("Authorization") ?? "";
+  if (!env.UPLOAD_TOKEN || !auth.startsWith("Bearer ") || !timingSafeEqual(auth.slice(7), env.UPLOAD_TOKEN)) return line("Unauthorized", 401);
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return line("Not ingested: body is not JSON", 400);
+  }
+  try {
+    const r = await ingestSnapshot(env, payload);
+    return line(r.message);
+  } catch (e) {
+    if (e instanceof SnapshotError) return line(`Not ingested: ${e.message}`, 422);
+    return line(`Not ingested: server error (${e instanceof Error ? e.message : String(e)})`, 500);
+  }
+}
+
 async function admin(request: Request, env: Env, ctx: ExecutionContext, path: string): Promise<Response> {
   const auth = request.headers.get("Authorization") ?? "";
   if (!env.ADMIN_TOKEN || !auth.startsWith("Bearer ") || !timingSafeEqual(auth.slice(7), env.ADMIN_TOKEN)) return new Response("Unauthorized", { status: 401 });
@@ -93,6 +117,14 @@ async function admin(request: Request, env: Env, ctx: ExecutionContext, path: st
       let state = await backfillStep(env);
       for (let i = 1; i < steps && state.phase !== "done"; i++) state = await backfillStep(env);
       return json(state);
+    }
+    if (path === "/admin/tools" && request.method === "GET") {
+      // What tools/list would return: proves the deployed server advertises every tool.
+      const h = createMcpHandler(() => buildServer(env, { ouraUserId: "admin" }), { legacy: "stateless" });
+      const init = await h.fetch(new Request(`${env.BASE_URL}/mcp`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "admin", version: "0" } } }) }));
+      const sid = init.headers.get("Mcp-Session-Id");
+      const list = await h.fetch(new Request(`${env.BASE_URL}/mcp`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", ...(sid ? { "Mcp-Session-Id": sid } : {}) }, body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }) }));
+      return new Response(await list.text(), { headers: { "Content-Type": list.headers.get("Content-Type") ?? "text/plain" } });
     }
     if (path.startsWith("/admin/tool/") && request.method === "GET") {
       // Operator preview of a tool's output, for verification without a Claude session.

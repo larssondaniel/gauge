@@ -69,9 +69,91 @@ const upload = workflow({
   ],
 });
 
+// ---- Shared building blocks for the snapshot shortcuts (D-018)
+const attach = (uuid, outputName) => ({ "{0, 1}": { outputName, uuid } });
+const dateActions = () => {
+  const dateUuid = randomUUID().toUpperCase();
+  const isoUuid = randomUUID().toUpperCase();
+  const tzUuid = randomUUID().toUpperCase();
+  const dateToken = `<dict><key>Value</key><dict><key>OutputName</key>${str("Current Date")}<key>OutputUUID</key>${str(dateUuid)}<key>Type</key><string>ActionOutput</string></dict><key>WFSerializationType</key><string>WFTextTokenAttachment</string></dict>`;
+  return {
+    isoUuid,
+    tzUuid,
+    actions: [
+      action("is.workflow.actions.date", `<key>UUID</key>${str(dateUuid)}<key>WFDateActionMode</key><string>Current Date</string>`),
+      action("is.workflow.actions.format.date", `<key>UUID</key>${str(isoUuid)}<key>WFInput</key>${dateToken}<key>WFDateFormatStyle</key><string>Custom</string><key>WFDateFormat</key><string>yyyy-MM-dd</string>`),
+      action("is.workflow.actions.format.date", `<key>UUID</key>${str(tzUuid)}<key>WFInput</key>${dateToken}<key>WFDateFormatStyle</key><string>Custom</string><key>WFDateFormat</key><string>xxx</string>`),
+    ],
+  };
+};
+const dictItem = (key, valueToken) => `<dict><key>WFItemType</key><integer>0</integer><key>WFKey</key>${tokenString(key)}<key>WFValue</key>${valueToken}</dict>`;
+const dictionaryAction = (uuid, items) =>
+  action("is.workflow.actions.dictionary", `<key>UUID</key>${str(uuid)}<key>WFItems</key><dict><key>Value</key><dict><key>WFDictionaryFieldValueItems</key><array>${items.join("")}</array></dict><key>WFSerializationType</key><string>WFDictionaryFieldValue</string></dict>`);
+const postAction = (uuid, path, bodyUuid, bodyName) =>
+  action(
+    "is.workflow.actions.downloadurl",
+    `<key>UUID</key>${str(uuid)}<key>WFURL</key>${str(`${baseUrl}${path}`)}<key>WFHTTPMethod</key><string>POST</string><key>WFHTTPBodyType</key><string>File</string><key>WFHTTPHeaders</key>${headers}<key>WFRequestVariable</key><dict><key>Value</key><dict><key>OutputName</key>${str(bodyName)}<key>OutputUUID</key>${str(bodyUuid)}<key>Type</key><string>ActionOutput</string></dict><key>WFSerializationType</key><string>WFTextTokenAttachment</string></dict><key>ShowHeaders</key><true/>`,
+  );
+const notifyAction = (postUuid) =>
+  action("is.workflow.actions.notification", `<key>WFNotificationActionBody</key>${tokenString("\uFFFC", attach(postUuid, "Contents of URL"))}<key>WFNotificationActionTitle</key>${str("Gauge")}<key>WFNotificationActionSound</key><false/>`);
+
+// MacroFactor's Get Nutrition State: nutrient by USDA nutrient number (Sodium = 307, seen in a real shortcut; the rest follow the same scheme).
+const NUTRIENTS = { calories: ["208", "Calories"], protein: ["203", "Protein"], carbs: ["205", "Carbs"], fat: ["204", "Fat"], fiber: ["291", "Fiber"], alcohol: ["221", "Alcohol"], sodium: ["307", "Sodium"] };
+const CALCS = { consumed: "consumed", remaining_goal: "remainingToTarget" };
+const nutritionAction = (uuid, [id, title], calculation) =>
+  action(
+    "com.sbs.diet.GetNutritionStateAppIntent",
+    `<key>AppIntentDescriptor</key><dict><key>AppIntentIdentifier</key><string>GetNutritionStateAppIntent</string><key>BundleIdentifier</key><string>com.sbs.diet</string><key>Name</key><string>MacroFactor</string><key>TeamIdentifier</key><string>QWPVJ94SN8</string></dict><key>UUID</key>${str(uuid)}<key>calculation</key>${str(calculation)}<key>target</key><dict><key>identifier</key>${str(id)}<key>title</key><dict><key>key</key>${str(title)}</dict><key>subtitle</key><dict><key>key</key>${str(title)}</dict><key>value</key>${str(id)}</dict>`,
+  );
+
+// ---- Gauge Nightly: 23:55 automation. 14 reads of Get Nutrition State -> dictionary -> POST /ingest/daily
+{
+  const d = dateActions();
+  const reads = [];
+  const items = [dictItem("date", tokenString("\uFFFC", attach(d.isoUuid, "Formatted Date"))), dictItem("tz_offset", tokenString("\uFFFC", attach(d.tzUuid, "Formatted Date")))];
+  for (const [key, spec] of Object.entries(NUTRIENTS)) {
+    for (const [calcKey, calcValue] of Object.entries(CALCS)) {
+      const uuid = randomUUID().toUpperCase();
+      reads.push(nutritionAction(uuid, spec, calcValue));
+      items.push(dictItem(`${key}_${calcKey}`, tokenString("\uFFFC", attach(uuid, "Consumed or Remaining"))));
+    }
+  }
+  const dictUuid = randomUUID().toUpperCase();
+  const postUuid = randomUUID().toUpperCase();
+  const nightly = workflow({
+    name: "Gauge Nightly",
+    inputClasses: [],
+    types: [],
+    glyph: 59446,
+    color: 946986751,
+    actions: [...d.actions, ...reads, dictionaryAction(dictUuid, items), postAction(postUuid, "/ingest/daily", dictUuid, "Dictionary"), notifyAction(postUuid)],
+  });
+  writeFileSync("shortcuts/build/Gauge Nightly.unsigned.shortcut", nightly);
+}
+
+// ---- Gauge Morning: "when MacroFactor is opened" automation. Daniel adds the two Health reads by hand and links them
+//      into the empty weight_lb and steps_yesterday values (Find Health Samples cannot be authored reliably from a template).
+{
+  const d = dateActions();
+  const dictUuid = randomUUID().toUpperCase();
+  const postUuid = randomUUID().toUpperCase();
+  const items = [dictItem("date", tokenString("\uFFFC", attach(d.isoUuid, "Formatted Date"))), dictItem("weight_lb", tokenString("")), dictItem("steps_yesterday", tokenString(""))];
+  const morning = workflow({
+    name: "Gauge Morning",
+    inputClasses: [],
+    types: [],
+    glyph: 59446,
+    color: 4282601983,
+    actions: [...d.actions, dictionaryAction(dictUuid, items), postAction(postUuid, "/ingest/daily", dictUuid, "Dictionary"), notifyAction(postUuid)],
+  });
+  writeFileSync("shortcuts/build/Gauge Morning.unsigned.shortcut", morning);
+}
+
 mkdirSync("shortcuts/build", { recursive: true });
-const unsigned = "shortcuts/build/Upload to Gauge.unsigned.shortcut";
-const signed = "shortcuts/build/Upload to Gauge.shortcut";
-writeFileSync(unsigned, upload);
-execFileSync("shortcuts", ["sign", "--mode", "anyone", "--input", unsigned, "--output", signed], { stdio: "inherit" });
-console.log(`wrote ${signed}`);
+writeFileSync("shortcuts/build/Upload to Gauge.unsigned.shortcut", upload);
+for (const name of ["Upload to Gauge", "Gauge Nightly", "Gauge Morning"]) {
+  const unsigned = `shortcuts/build/${name}.unsigned.shortcut`;
+  const signed = `shortcuts/build/${name}.shortcut`;
+  execFileSync("shortcuts", ["sign", "--mode", "anyone", "--input", unsigned, "--output", signed], { stdio: "inherit" });
+  console.log(`wrote ${signed}`);
+}
