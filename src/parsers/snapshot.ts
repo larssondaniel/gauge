@@ -93,10 +93,13 @@ export function parseSnapshot(payload: unknown): ParsedSnapshot {
 
   if (!nutrition && !health) throw new SnapshotError("Payload has neither nutrition nor health fields");
 
+  // tz_offset may come as its own key, or ride along on an ISO 8601 date ("2026-09-30T23:55:00-04:00").
   const tz = obj["tz_offset"];
+  const fromDate = typeof obj["date"] === "string" ? /([+-]\d{2}:\d{2}|Z)$/.exec(obj["date"].trim())?.[1] : undefined;
+  const tzOffset = typeof tz === "string" && /^[+-]\d{2}:\d{2}$/.test(tz) ? tz : fromDate ? (fromDate === "Z" ? "+00:00" : fromDate) : null;
   return {
     date,
-    tz_offset: typeof tz === "string" && /^[+-]\d{2}:\d{2}$/.test(tz) ? tz : null,
+    tz_offset: tzOffset,
     nutrition,
     health,
     received,

@@ -39,6 +39,11 @@ describe("snapshot payload", () => {
     expect(() => parseSnapshot({ date: "2026-09-30" })).toThrow(/neither/);
     expect(() => parseSnapshot({ date: "2026-09-30", steps: "lots" })).toThrow(/must be a number/);
   });
+  it("takes the offset from an ISO 8601 date when tz_offset is absent", () => {
+    const p = parseSnapshot({ date: "2026-09-30T23:55:12-04:00", steps: 100 });
+    expect(p.date).toBe("2026-09-30");
+    expect(p.tz_offset).toBe("-04:00");
+  });
   it("accepts steps_yesterday from the morning shortcut", () => {
     const p = parseSnapshot({ date: "2026-09-30", weight_lb: "180.8", steps_yesterday: 6449 });
     expect(p.health).toEqual({ weight_lb: 180.8, steps: null, steps_yesterday: 6449 });
