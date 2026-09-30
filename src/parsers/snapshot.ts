@@ -58,7 +58,7 @@ export function parseSnapshot(payload: unknown): ParsedSnapshot {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new SnapshotError("Payload must be a JSON object");
   const obj = payload as Record<string, unknown>;
   const date = normaliseDate(obj["date"]);
-  if (!date) throw new SnapshotError('Payload needs "date" as YYYY-MM-DD');
+  if (!date) throw new SnapshotError(`Payload needs "date" as YYYY-MM-DD (got ${JSON.stringify(obj["date"] ?? null).slice(0, 60)}; keys: ${Object.keys(obj).slice(0, 6).join(", ")})`);
 
   const received: string[] = [];
   const missing: string[] = [];
