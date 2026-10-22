@@ -15,6 +15,9 @@ uploads/
 *.sqlite3
 *.db
 
+# Tests whose expected values come from real exports
+test/*.local.test.ts
+
 # Secrets and local config
 .env
 .env.*

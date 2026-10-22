@@ -31,7 +31,7 @@ describe("rolling windows (D-008)", () => {
   it("computes 7-day means and trend rate", () => {
     const s = series("2026-01-01", [1, 2, 3, null, 5, 6, 7]);
     expect(rollingMean(s, "2026-01-07", 7)).toEqual({ mean: 4, n: 6 });
-    const trend = new Map([["2026-01-01", 180], ["2026-01-08", 180.9]]);
+    const trend = new Map([["2026-01-01", 100], ["2026-01-08", 100.5]]);
     expect(trendRate(trend, "2026-01-08")).toBe(0.5);
     expect(trendRate(trend, "2026-01-09")).toBeNull();
   });

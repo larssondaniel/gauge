@@ -1,6 +1,6 @@
 # Gauge
 
-A private, read-only MCP server that lets Claude answer a fitness plan's recurring questions from one person's Oura and MacroFactor data. The spec is [SPEC.md](SPEC.md); every departure from it is logged in [DECISIONS.md](DECISIONS.md).
+A personal, single-user, read-only MCP server that lets Claude answer a fitness plan's recurring questions from one person's Oura and MacroFactor data. The spec is [SPEC.md](SPEC.md); every departure from it is logged in [DECISIONS.md](DECISIONS.md).
 
 ## Shape
 
@@ -13,7 +13,7 @@ A private, read-only MCP server that lets Claude answer a fitness plan's recurri
 
 ```bash
 npm install            # Node 22+
-npm test               # parsers run against samples/ when present (git-ignored)
+npm test               # synthetic tests; test/*.local.test.ts also runs against samples/ when present (both git-ignored)
 npm run typecheck
 npm run deploy         # wrangler deploy (needs `wrangler login`)
 npm run shortcuts      # builds and signs the iOS Shortcuts from .dev.vars (macOS)
@@ -22,4 +22,4 @@ npm run wipe -- --yes  # deletes all stored data, tokens, and grants
 
 Secrets (`wrangler secret put`): `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`, `OURA_USER_ID`, `CONSENT_SECRET`, `TOKEN_ENCRYPTION_KEY`, `ADMIN_TOKEN`, `UPLOAD_TOKEN`. Migrations: `wrangler d1 migrations apply gauge --remote`.
 
-Nothing personal is committed: samples, exports, payloads, generated Shortcuts (they embed the upload token), and `.dev.vars` are all git-ignored.
+Nothing personal is committed: samples, exports, payloads, the tests that read them, generated Shortcuts (they embed the upload token), and `.dev.vars` are all git-ignored.
